@@ -1,0 +1,53 @@
+#!/bin/sh
+# One-command parity check for ported classes. Copy into the project as check.sh and fill in the
+# four commands marked FILL. Usage:
+#
+#   ./check.sh ClassA,ClassB                    # default scenario
+#   ./check.sh ClassA,ClassB scenarios/x.json
+#   ./check.sh ClassA,ClassB fuzz 5             # 5 fresh random scenarios
+#
+# Done = every run prints diverged=0 missing=0. Always list ALL ported classes.
+set -e
+cd "$(dirname "$0")"
+CLASSES=${1:?usage: check.sh <Class[,Class...]> [scenario.json | fuzz N]}
+SKILL=${SKILL:-path/to/game-parity-port}          # FILL: where this skill's scripts/ live
+BASE=${BASE:-scenarios/base.json}                 # FILL: base scenario for fuzzing
+ACTIONS=${ACTIONS:-scenarios/fuzz_actions.json}   # FILL: action table for fuzzing
+
+build() {
+  # FILL: build the engine layer, the port library and the oracle, e.g.
+  # cargo build --release -p engine -p port && (cd oracle && dotnet build -c Release)
+  :
+}
+run_oracle() {   # $1 scenario, $2 out dir
+  # FILL: e.g. (cd oracle && dotnet run -c Release --no-build -- --scenario "$1" --out "$2")
+  :
+}
+run_hybrid() {   # $1 scenario, $2 out dir, $3 classes
+  # FILL: e.g. (cd oracle && dotnet run -c Release --no-build -- --scenario "$1" --out "$2" --rust ../target/release/libport.dylib --port "$3")
+  :
+}
+
+one() {          # $1 scenario
+  NAME=$(basename "$1" .json)
+  run_oracle "$1" "$PWD/reports/oracle_$NAME"
+  run_hybrid "$1" "$PWD/reports/hybrid_$NAME" "$CLASSES"
+  python3 "$SKILL/scripts/trace_compare.py" "reports/oracle_$NAME/trace.jsonl" "reports/hybrid_$NAME/trace.jsonl" \
+    --out "reports/compare_$NAME" --src "${SRC:-game_src}"
+}
+
+build
+if [ "$2" = "fuzz" ]; then
+  FAILED=0; i=0
+  while [ $i -lt "${3:-3}" ]; do
+    i=$((i + 1))
+    SEED=$(python3 "$SKILL/scripts/fuzz_scenario.py" "$BASE" "$ACTIONS" scenarios/fuzz_tmp.json $4)
+    mv scenarios/fuzz_tmp.json "scenarios/fuzz_$SEED.json"
+    echo "== fuzz run $i seed $SEED"
+    if one "scenarios/fuzz_$SEED.json"; then rm -rf "scenarios/fuzz_$SEED.json" "reports/oracle_fuzz_$SEED" "reports/hybrid_fuzz_$SEED"
+    else FAILED=$((FAILED + 1)); echo "   kept scenarios/fuzz_$SEED.json (replay: ./check.sh $CLASSES scenarios/fuzz_$SEED.json)"; fi
+  done
+  echo "fuzz: $((i - FAILED))/$i exact"; [ $FAILED -eq 0 ]
+else
+  one "${2:-scenarios/base.json}"
+fi
