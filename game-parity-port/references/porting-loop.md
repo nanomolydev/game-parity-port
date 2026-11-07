@@ -1,9 +1,12 @@
 # Phase 6: hybrid porting loop
 
-The port is not tested in a separate program. Ported classes run **inside the oracle**: for those
-classes the player loop calls the new-language implementation instead of the original method, on
-the live objects; every other class keeps running the original. So a class can be verified alone,
-the moment it is written.
+When the oracle runs the original logic (form A, sometimes B), the port is not tested in a separate
+program. Ported classes/scripts/functions run **inside the oracle**: for those, the frame loop (or a
+detour) calls the new-language implementation instead of the original, on the live objects; the rest
+keeps running the original. So a piece can be verified alone, the moment it is written.
+
+With form C/D oracles there is no hybrid: run the port on the same scenario and compare traces.
+Everything below about wrappers, ordering and model roles still applies.
 
 ## The bridge
 
@@ -16,20 +19,22 @@ the moment it is written.
   enum).
 - Object handles are valid for the outermost call only. Clear the handle table when the outermost
   call returns, not on nested calls (port -> original -> port), or nested calls corrupt the outer one.
-- Route Unity messages with an argument (OnCollisionEnter(Collision), OnTriggerEnter(Collider)) as
-  well as plain ones; collision messages are a big part of gameplay.
-- Coroutines: the port implements a state machine (one state per `yield return`) and starts it
-  through the host, which wraps it in an IEnumerator calling `coroutine_resume`. The state machine
-  must not keep object handles between steps; the owner is passed in again on each step.
+- Route engine callbacks with an argument (Unity `OnCollisionEnter(Collision)`, Godot
+  `_on_body_entered(body)`, GameMaker collision events) as well as plain ones; collision callbacks
+  are a big part of gameplay.
+- Coroutines / generators / async continuations (C# iterators, Lua coroutines, GDScript `await`,
+  JS generators): the port implements a state machine (one state per suspension point) and
+  registers it with the host, which resumes it at the same points of the frame loop as the original.
+  The state machine must not keep object handles between steps; the owner is passed in again.
 - Overload resolution in `invoke`: skip generic method definitions; prefer exact tag matches.
 - Panics in the port surface as recorded exceptions with the message, not as crashes.
 
 ## Typed wrappers (generated)
 
-Generate wrappers for every game and engine type from the real metadata, with the original names:
+Generate wrappers for every game and engine type from the real metadata (assembly metadata,
+script class definitions, reflection data, recovered layouts), with the original names, for example
 `PlayerController::instance(w).EnergyCurrent(w)`, `this.set_JumpImpulse(w, true)`,
-`Time::get_fixedDeltaTime(w)`, enums as `GameDirector_gameState::Main` with the real underlying
-values. A porting model then writes code that reads almost like the original, and the compiler
+`Time::get_fixedDeltaTime(w)`, enums with the real underlying values. A porting model then writes code that reads almost like the original, and the compiler
 catches typos in names.
 
 ## The loop for one class
@@ -42,7 +47,7 @@ catches typos in names.
 5. Read the first divergence: frame, class.field, oracle vs port value, assigning source lines. Fix
    the port. Repeat.
 
-Big classes: port one message at a time (`--port PhysGrabber.Update`); the registry accepts
+Big classes: port one callback at a time (`--port Player.Update`); the registry accepts
 `Class.Method`.
 
 ## Ordering

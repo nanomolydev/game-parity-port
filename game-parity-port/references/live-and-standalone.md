@@ -3,18 +3,20 @@
 ## Live play of the hybrid (cheap, early, motivating)
 
 Add a `--live <port>` mode to the oracle: after the scenario setup, instead of a fixed frame count,
-serve a tiny HTTP endpoint. A browser page posts held controls (Input System paths from
-`KeyboardEvent.code`, mouse buttons) and the pointer-locked mouse delta; the server advances whole
+serve a tiny HTTP endpoint. A browser page posts held controls (mapped from `KeyboardEvent.code` and
+mouse buttons to your input layer's control names) and the pointer-locked mouse delta; the server advances whole
 fixed-length frames to follow wall-clock time (cap the catch-up, e.g. 5 frames per request) and
 answers with what the main camera sees: visible renderers (mesh id, world matrix, material color),
-lights, camera pose and FOV, a few HUD values. The page draws them with three.js (mirror Z once for
-Unity's left-handed space; the Unity camera looks down +Z).
+lights, camera pose and FOV, a few HUD values. The page draws them with three.js (convert the
+engine's handedness and camera forward axis once at the root, for example Unity is left-handed and
+its camera looks down +Z). If the engine is open source and can render headless (Godot), you can
+skip this and render with the real engine.
 
 Lessons:
 - Send mesh definitions per client ("have N meshes" in the request), never "once globally": a probe
   request or a page reload otherwise gets positions without geometry and shows a black screen.
-- Respect the game's own visibility rules: camera culling mask from the real data, and skip
-  `ShadowsOnly` renderers (that is how first-person games hide the local body).
+- Respect the game's own visibility rules: camera layer masks from the real data, shadow-only or
+  "owner no see" render modes (that is how first-person games hide the local body).
 - Keep the light pool fixed size (shader recompiles on count change), pixel ratio 1, cheap
   materials; label the page as a debug view, not the game's renderer.
 - Add a `/near` debug endpoint (closest visible renderers with names, layers, distances); it finds

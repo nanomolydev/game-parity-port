@@ -6,15 +6,20 @@ timeline. Both oracle and port read the same file.
 ```json
 {
   "name": "walk_look_jump", "frames": 300, "seed": 1,
-  "spawn": [{"prefab": "resources.assets:178007", "pos": [0, 0, 0]}],
+  "spawn": [{"prefab": "rooms/small_bedroom", "pos": [0, 0, 0]}],
   "input": [
     {"from": 0, "to": 9999, "mousePosition": [960, 540]},
-    {"from": 30, "to": 120, "hold": ["<Keyboard>/w"]},
+    {"from": 30, "to": 120, "hold": ["key:w"]},
     {"from": 60, "to": 90, "mouseDelta": [6, 0]},
-    {"at": 210, "tap": "<Keyboard>/space"}
+    {"at": 210, "tap": "key:space"}
   ]
 }
 ```
+
+Control names are whatever your input layer understands: Unity Input System paths
+(`<Keyboard>/w`), Godot action names (`move_forward`), SDL scancodes, emulator pad buttons
+(`P1 A`). Input is applied at exact frames, at the point in the frame loop where the engine samples
+it. For emulated games use the emulator's movie format directly.
 
 ## Three kinds, all needed
 

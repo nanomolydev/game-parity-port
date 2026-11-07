@@ -1,6 +1,8 @@
-# Phases 1-3 for Unity (Mono): running the original Assembly-CSharp.dll as the oracle
+# Unity (Mono backend): the original Assembly-CSharp.dll as the oracle (form A)
 
-Worked design from a real port (Unity 2022.3, Mono, PhysX, Photon). Adapt names to the project.
+The generic steps are in `../oracle.md`; this is how they look for Unity Mono builds, from a real
+port (Unity 2022.3, Mono, PhysX, Photon). Recognize the build: `<Game>_Data/Managed/Assembly-CSharp.dll`
+exists and there is no `GameAssembly.dll`. For IL2CPP builds see `unity-il2cpp.md`.
 
 ## Contents
 1. Layout

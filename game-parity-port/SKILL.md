@@ -1,6 +1,6 @@
 ---
 name: game-parity-port
-description: Build a tick-exact parity testing core for an existing game and port its logic to Rust (or any other language) one class at a time, verified against the ORIGINAL game running as an oracle. Use this whenever someone wants to rewrite, port, remake or reimplement a game (Unity, Godot, a C#/.NET, Java, Lua or custom engine game) and keep it identical to the original, wants "Horizon-style" or per-frame/per-tick identity tests, deterministic replay comparison, a divergence report a smaller model can follow, or asks how to port a game to Rust without breaking mechanics, even if they never say "oracle" or "parity".
+description: Build a tick-exact parity testing core for any existing game and port its logic to Rust (or any other language) one piece at a time, verified against the ORIGINAL game running as an oracle. Works for any engine or build type (Unity Mono/IL2CPP, Godot, Unreal, XNA/FNA/MonoGame, Java, Lua/JS/Python scripts, GameMaker, native C/C++, emulated console games). Use this whenever someone wants to rewrite, port, remake, decompile-and-rebuild or reimplement a game and keep it identical to the original, wants per-frame/per-tick identity tests or deterministic replay comparison, a divergence report a smaller model can follow, or asks how to port a game to another language without breaking mechanics, even if they never say "oracle" or "parity".
 ---
 
 # Game parity port
@@ -32,7 +32,7 @@ Three rules make the comparison meaningful:
 ## The architecture (build in this order)
 
 ```
-original game code (dll / bytecode / scripts)          the port (Rust, C++, ...)
+original game logic (bytecode / scripts / native)      the port (Rust, C++, ...)
         |                                                      |
    engine API facade  ---------- same calls ------------  typed wrappers
         |                                                      |
@@ -50,10 +50,10 @@ Phases, each with a definition of done. Read the reference file for a phase when
 
 | # | Phase | Done when | Reference |
 |---|---|---|---|
-| 0 | Recon | You know engine, version, scripting backend, where the logic lives, what native plugins exist | `references/recon.md` |
-| 1 | API inventory | A complete, generated table of every engine member the game references, with callers | `references/oracle-unity-mono.md` (or `other-engines.md`) |
-| 2 | Engine facade + engine layer | The original code loads and runs frames headless; unimplemented calls are counted, never silent | same |
-| 3 | Scene from original assets | Objects, components and serialized values come from the shipped asset files, not re-typed | same |
+| 0 | Recon | You know engine, version, where the logic lives and in what form, plugins, physics; oracle form chosen | `references/recon.md` |
+| 1 | API inventory | A complete, generated table of every engine member the game references, with callers | `references/oracle.md` + `references/engines/<engine>.md` |
+| 2 | Engine facade + engine layer | The original logic runs frames headless and seeded; unimplemented calls are counted, never silent | same |
+| 3 | World from original data | Objects and their initial values come from the shipped data files, not re-typed | same |
 | 4 | Trace + comparator | Two oracle runs with the same seed give 0 divergences; a deliberate one-line bug is caught | `references/trace-and-compare.md` |
 | 5 | Scenarios | Fixed scenarios per mechanic + randomized ones with a new seed every run | `references/scenarios.md` |
 | 6 | Hybrid porting loop | A ported class runs inside the oracle and matches on every scenario | `references/porting-loop.md` |
@@ -78,7 +78,7 @@ a planted bug, makes every later "0 divergences" meaningless.
 
 ## Bundled scripts
 
-- `scripts/trace_compare.py`: engine-agnostic comparator for the delta-JSONL trace format
+- `scripts/trace_compare.py`: engine- and language-agnostic comparator for the delta-JSONL trace format
   (`references/trace-and-compare.md`). Exact by default, first divergence per class.field,
   optional source-line lookup. Use it as is, or as the spec for a faster native comparator.
 - `scripts/fuzz_scenario.py`: makes a randomized scenario from a base scenario and an action table
@@ -86,12 +86,26 @@ a planted bug, makes every later "0 divergences" meaningless.
 - `scripts/check.sh.template`: the one-command loop (build, oracle run, hybrid run, compare, print
   first divergences). Copy it into the project and fill in the three commands.
 
-## When the target is not Unity/Mono
+## Engine-specific notes
 
-The method is the same for any engine; only phases 1-3 change. `references/other-engines.md` covers
-IL2CPP and native builds, Godot (GDScript/C#), Java/LWJGL games, Lua-scripted engines and custom C++
-engines, including the cases where the oracle has to be an instrumented original build instead of
-the original code running on a facade.
+The method is the same for every game; only how the oracle is built (phases 1-3) differs. After
+recon, read the one file that matches the build:
+
+| Build | File | Oracle form |
+|---|---|---|
+| Unity, Mono (`Managed/Assembly-CSharp.dll`) | `references/engines/unity-mono.md` | original bytecode on a facade |
+| Unity, IL2CPP (`GameAssembly.dll` + `global-metadata.dat`) | `references/engines/unity-il2cpp.md` | instrumented original |
+| Godot (GDScript or C#) | `references/engines/godot.md` | original scripts on the real engine, headless |
+| XNA / FNA / MonoGame / custom .NET | `references/engines/dotnet-xna.md` | original bytecode on a facade |
+| Unreal | `references/engines/unreal.md` | instrumented original |
+| Java / Kotlin (LWJGL, libGDX) | `references/engines/jvm.md` | original bytecode on a facade |
+| Lua, JS/HTML5, Python, Ruby, ActionScript | `references/engines/scripted.md` | original scripts in the same VM |
+| GameMaker (`data.win`) | `references/engines/gamemaker.md` | VM bytecode, or instrumented YYC |
+| Native C/C++, custom engines | `references/engines/native.md` | rebuilt / hooked / observed original |
+| Console and retro (ROMs, DOS, SCUMM) | `references/engines/emulated.md` | the emulator |
+
+Nothing listed? Use `references/oracle.md` directly: decide the oracle form (original logic on a
+facade, instrumented original, emulator, or observation) and follow the generic steps.
 
 ## Legal and scope note
 
