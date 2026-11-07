@@ -76,10 +76,12 @@ flowchart LR
 
 1. **Split engine from game.** Engine behaviour is implemented once and shared, so only game logic is
    compared and engine differences do not drown the signal.
-2. **Run the original unchanged**, headless, fixed timestep, seeded, fed by scenario input.
-3. **Trace everything**: every field of every object every tick, delta-encoded, with stable keys.
-4. **Fixed, bot-recorded and randomized scenarios**: new random data every run, replayable by seed.
-5. **Exact by default**: floats compared bit for bit. A tolerance hides real bugs.
+2. **Testing core first.** The agent builds the oracle, the trace and the comparator and must pass a
+   gate check (determinism + a planted bug caught) before it writes a single line of the port.
+3. **Run the original unchanged**, headless, fixed timestep, seeded, fed by scenario input.
+4. **Trace everything**: every field of every object every tick, delta-encoded, with stable keys.
+5. **Fixed, bot-recorded and randomized scenarios**: new random data every run, replayable by seed.
+6. **Exact by default**: floats compared bit for bit. A tolerance hides real bugs.
 
 ## What is inside
 
@@ -96,6 +98,7 @@ game-parity-port/
 │   └── engines/                   unity-mono, unity-il2cpp, godot, dotnet-xna, unreal, jvm,
 │                                  scripted, gamemaker, native, emulated
 └── scripts/
+    ├── gate_check.py              the gate: no porting until the testing core is proven trustworthy
     ├── trace_compare.py           language-agnostic exact comparator with source-line lookup
     ├── fuzz_scenario.py           randomized scenarios from an action table, reproducible by seed
     └── check.sh.template          one-command loop: build, oracle, hybrid, compare

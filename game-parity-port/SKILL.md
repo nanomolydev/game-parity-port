@@ -1,6 +1,6 @@
 ---
 name: game-parity-port
-description: Build a tick-exact parity testing core for any existing game and port its logic to Rust (or any other language) one piece at a time, verified against the ORIGINAL game running as an oracle. Works for any engine or build type (Unity Mono/IL2CPP, Godot, Unreal, XNA/FNA/MonoGame, Java, Lua/JS/Python scripts, GameMaker, native C/C++, emulated console games). Use this whenever someone wants to rewrite, port, remake, decompile-and-rebuild or reimplement a game and keep it identical to the original, wants per-frame/per-tick identity tests or deterministic replay comparison, a divergence report a smaller model can follow, or asks how to port a game to another language without breaking mechanics, even if they never say "oracle" or "parity".
+description: First build a tick-exact parity testing core for any existing game (the original game as an oracle, a per-tick trace of every field, an exact comparator, a passing gate check), and only then port its logic to Rust (or any other language) one piece at a time, verified against the ORIGINAL game running as an oracle. Works for any engine or build type (Unity Mono/IL2CPP, Godot, Unreal, XNA/FNA/MonoGame, Java, Lua/JS/Python scripts, GameMaker, native C/C++, emulated console games). Use this whenever someone wants to rewrite, port, remake, decompile-and-rebuild or reimplement a game and keep it identical to the original, wants per-frame/per-tick identity tests or deterministic replay comparison, a divergence report a smaller model can follow, or asks how to port a game to another language without breaking mechanics, even if they never say "oracle" or "parity".
 ---
 
 # Game parity port
@@ -8,6 +8,41 @@ description: Build a tick-exact parity testing core for any existing game and po
 Port a game to a new language while proving, every frame, that the port behaves exactly like the
 original. The original game code is the reference ("oracle"), not hand-written expectations.
 Everything else in this skill serves that one idea.
+
+## Start here: the testing core comes first (hard gate)
+
+The deliverable of the first session is **the testing core, not the port**. Do not write port code,
+do not run a port, do not "quickly rewrite the main loop to see it working", until the gate below
+passes. This holds for small games too: a small game makes the core small (a few hundred lines), not
+optional. Without the core, nothing you port can be shown identical, and the user asked for identity.
+
+If you notice you are about to write or run port code before the gate passed, stop and go back to
+the core. If the core is blocked (the original cannot be made to run, no way to read its state),
+say so plainly with the reason and the options (`references/oracle.md` section 1); do not fall back
+to porting without an oracle.
+
+Build these, in this order, in a `parity/` folder of the project:
+
+1. `parity/RECON.md`: answers from `references/recon.md` and the chosen oracle form.
+2. `parity/oracle/`: runs the ORIGINAL game logic headless, fixed timestep, seeded, for N frames of
+   a scenario, and writes `trace.jsonl` (every field of every game object, every frame;
+   `references/trace-and-compare.md`). Plus a report of unimplemented engine calls.
+3. `parity/scenarios/`: at least one scenario where the player actually does things (moves, jumps,
+   uses the main mechanic) for several seconds.
+4. `parity/check.sh`: from `scripts/check.sh.template`; one command builds, runs, compares.
+5. The gate:
+
+   ```sh
+   # run the oracle twice on the same scenario and seed, then:
+   python3 <skill>/scripts/gate_check.py parity/reports/run1/trace.jsonl parity/reports/run2/trace.jsonl
+   ```
+
+   It checks that the trace is substantial, that two runs are identical (determinism) and that a
+   planted one-value change is caught at the right frame (negative control). Only `GATE PASSED`
+   opens the porting phase.
+
+Then report to the user: what the oracle runs, how many objects/fields per frame are traced, what is
+stubbed or approximate, the gate output. Porting (phase 6) starts after that, one class at a time.
 
 ## Why this shape works
 
@@ -29,7 +64,7 @@ Three rules make the comparison meaningful:
 3. **Exact by default.** Compare floats bit-for-bit (abs = rel = 0). A tolerance hides real bugs
    (operand order, double vs float, a missed clamp). Only loosen it for a field with a written reason.
 
-## The architecture (build in this order)
+## The architecture
 
 ```
 original game logic (bytecode / scripts / native)      the port (Rust, C++, ...)
@@ -54,13 +89,14 @@ Phases, each with a definition of done. Read the reference file for a phase when
 | 1 | API inventory | A complete, generated table of every engine member the game references, with callers | `references/oracle.md` + `references/engines/<engine>.md` |
 | 2 | Engine facade + engine layer | The original logic runs frames headless and seeded; unimplemented calls are counted, never silent | same |
 | 3 | World from original data | Objects and their initial values come from the shipped data files, not re-typed | same |
-| 4 | Trace + comparator | Two oracle runs with the same seed give 0 divergences; a deliberate one-line bug is caught | `references/trace-and-compare.md` |
+| 4 | Trace + comparator | `scripts/gate_check.py` prints GATE PASSED (substantial trace, determinism, negative control) | `references/trace-and-compare.md` |
 | 5 | Scenarios | Fixed scenarios per mechanic + randomized ones with a new seed every run | `references/scenarios.md` |
 | 6 | Hybrid porting loop | A ported class runs inside the oracle and matches on every scenario | `references/porting-loop.md` |
 | 7 | Live play + standalone | Play the hybrid in real time; later run the port without the original at all | `references/live-and-standalone.md` |
 
-Do not skip phase 4's two checks. An oracle that is not deterministic, or a comparator that misses
-a planted bug, makes every later "0 divergences" meaningless.
+Phases 0-4 are the testing core; phase 6 is forbidden before the gate passes. An oracle that is not
+deterministic, or a comparator that misses a planted bug, makes every later "0 divergences"
+meaningless. Re-run the gate whenever the oracle, the trace writer or the comparator changes.
 
 ## Working rules (tell these to any model doing the porting)
 
@@ -78,6 +114,8 @@ a planted bug, makes every later "0 divergences" meaningless.
 
 ## Bundled scripts
 
+- `scripts/gate_check.py`: the gate between "testing core" and "porting". Substantial trace,
+  determinism of two oracle runs, negative control. Exit 0 only on GATE PASSED.
 - `scripts/trace_compare.py`: engine- and language-agnostic comparator for the delta-JSONL trace format
   (`references/trace-and-compare.md`). Exact by default, first divergence per class.field,
   optional source-line lookup. Use it as is, or as the spec for a faster native comparator.
