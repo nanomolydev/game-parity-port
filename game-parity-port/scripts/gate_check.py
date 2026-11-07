@@ -5,7 +5,9 @@
 
 Checks, in order (all must pass; prints GATE PASSED or GATE FAILED with the reason):
   1. the oracle trace exists, parses, has at least --min-frames frames and --min-values compared values
-     (an empty or near-empty trace means the oracle is not really recording the game);
+     (an empty or near-empty trace means the oracle is not really recording the game), and is alive:
+     at least --min-objects objects change after frame 0 and values change in at least half the frames
+     (a game stuck in a menu, or a recording of a few function results, fails here);
   2. determinism: two oracle runs of the same scenario and seed compare with 0 divergences;
   3. negative control: one numeric value planted in a copy of run 2 (+1e-6 mid-run) is reported by the
      comparator at exactly that frame and key;
@@ -47,13 +49,24 @@ def main():
     ap.add_argument("--port")
     ap.add_argument("--min-frames", type=int, default=60)
     ap.add_argument("--min-values", type=int, default=1000)
+    ap.add_argument("--min-objects", type=int, default=5)
     a = ap.parse_args()
     tmp = tempfile.mkdtemp(prefix="gate_")
 
     fr = frames_of(a.run1)
     if len(fr) < a.min_frames:
         fail(f"{a.run1} has {len(fr)} frames (need {a.min_frames}); run a real scenario: setup, then the player acting for a few seconds")
-    print(f"[1] oracle trace: {len(fr)} frames")
+    # liveness: the game must really play (objects keep changing), not sit in a menu or record a few values
+    changing, active_frames = set(), 0
+    for x in fr[1:]:
+        st = x.get("set") or {}
+        if st: active_frames += 1
+        changing.update(k.split("|", 1)[0] for k in st)
+    if len(changing) < a.min_objects:
+        fail(f"only {len(changing)} objects change after frame 0 (need {a.min_objects}); the trace must record every live game object while the game plays")
+    if active_frames < 0.5 * (len(fr) - 1):
+        fail(f"values change in only {active_frames} of {len(fr) - 1} frames; is the game stuck (menu, loading, exception loop) or is the trace not written every frame?")
+    print(f"[1] oracle trace: {len(fr)} frames, {len(changing)} objects changing, changes in {active_frames}/{len(fr) - 1} frames")
 
     code, rep = compare(a.run1, a.run2, os.path.join(tmp, "det"))
     if rep["values_compared"] < a.min_values:

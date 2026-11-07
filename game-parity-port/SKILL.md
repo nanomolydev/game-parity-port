@@ -9,6 +9,35 @@ Port a game to a new language while proving, every frame, that the port behaves 
 original. The original game code is the reference ("oracle"), not hand-written expectations.
 Everything else in this skill serves that one idea.
 
+## What "the test" means here (read this before writing anything)
+
+The test is NOT a set of unit tests. It is this, and only this:
+
+1. **Run the whole original game**, its own main loop, for hundreds of frames, headless, with a
+   fixed timestep, a fixed seed and scripted input (the "scenario": walk here, jump at frame 210...).
+2. **Record everything, every frame**: after each frame, walk every live game object and write all
+   of its fields (position, velocity, timers, flags, health, score, state machine state, ...) into
+   `trace.jsonl`. This recording is the oracle: the ground truth of what the game actually did.
+3. **Run the port on exactly the same scenario** and record its frames the same way.
+4. **Compare the two recordings frame by frame, field by field, exactly.** The first frame where any
+   field differs is the bug, and the report names the frame, object, field and source line.
+
+| This IS the oracle | This is NOT (do not do it) |
+|---|---|
+| the original game's own loop runs frame after frame, as if a player were playing | calling one original function with sample arguments and asserting its return value |
+| state of every object recorded after every frame, thousands of values per frame | a handful of hand-picked values, or only the final result of a run |
+| the original code runs unchanged; only window, input, clock and RNG are replaced | re-implementing or "simplifying" original code to make it testable |
+| input comes from a scenario timeline, the same file for oracle and port | mocks, fakes or stubs of game objects |
+| expected values are whatever the original produced | expected values written by hand or by a model |
+| port and original compared frame by frame on the same scenario | "the function returns the same thing", "it looks the same" |
+
+Self-check before you continue: *could this trace have been produced without the original game
+running its main loop end to end?* If yes, it is not an oracle; go back. Unit tests of single
+functions may exist later as debugging aids, but they never count as parity.
+
+Concrete oracle harnesses for small games (Python/pygame, JS in a browser, Lua/LÖVE, .NET,
+emulator) are in `references/oracle-examples.md`. Look at the one closest to the game first.
+
 ## Start here: the testing core comes first (hard gate)
 
 The deliverable of the first session is **the testing core, not the port**. Do not write port code,
@@ -20,6 +49,9 @@ If you notice you are about to write or run port code before the gate passed, st
 the core. If the core is blocked (the original cannot be made to run, no way to read its state),
 say so plainly with the reason and the options (`references/oracle.md` section 1); do not fall back
 to porting without an oracle.
+
+**Follow `references/build-manual.md` step by step**: it is the concrete procedure (what each component
+does inside, how to verify it, the bugs that actually happened). The summary of what must exist:
 
 Build these, in this order, in a `parity/` folder of the project:
 
@@ -37,8 +69,11 @@ Build these, in this order, in a `parity/` folder of the project:
    python3 <skill>/scripts/gate_check.py parity/reports/run1/trace.jsonl parity/reports/run2/trace.jsonl
    ```
 
-   It checks that the trace is substantial, that two runs are identical (determinism) and that a
-   planted one-value change is caught at the right frame (negative control). Only `GATE PASSED`
+   It checks that the trace is substantial and alive (many objects keep changing over many frames,
+   so the game really played instead of sitting in a menu), that two runs are identical
+   (determinism) and that a planted one-value change is caught at the right frame (negative
+   control). Also confirm in `RECON.md`, with numbers from the trace, that the scenario's actions
+   happened (the player moved, the jump went up and came down, the item was picked up). Only `GATE PASSED`
    opens the porting phase.
 
 Then report to the user: what the oracle runs, how many objects/fields per frame are traced, what is

@@ -89,6 +89,8 @@ flowchart LR
 game-parity-port/
 ├── SKILL.md                       method, architecture, phases with "done" criteria, rules for porting models
 ├── references/
+│   ├── build-manual.md            the step-by-step procedure for the testing core, with real bugs and fixes
+│   ├── oracle-examples.md         ready oracle harnesses: Python/pygame, browser JS, Lua/LÖVE, .NET, emulator
 │   ├── recon.md                   identify the build; choose the oracle form
 │   ├── oracle.md                  generic oracle: API inventory, facade, engine layer, frame loop, data
 │   ├── trace-and-compare.md       trace format, stable keys, determinism and negative-control checks
